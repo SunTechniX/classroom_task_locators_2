@@ -57,7 +57,7 @@ def main():
     report_lines = []
     report_lines.append("## 📊 ИТОГОВЫЙ ОТЧЕТ ПО ВСЕМ ЗАДАНИЯМ\n")
     report_lines.extend(table_lines)
-    report_lines.append(f"\n| **ВСЕГО** | **{total_score}** | **{max_total}** | **{percentage}%** |\n")
+    report_lines.append(f"| **ВСЕГО** | **{total_score}** | **{max_total}** | **{percentage}%** |\n")
 
     report_lines.append("### 📁 Найденные файлы:")
     for task_id in task_ids:
