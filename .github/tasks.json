@@ -1,0 +1,34 @@
+{
+  "tasks": [
+    {
+      "id": "task_01",
+      "name": "Задание 1: CSS и XPath для кнопок (demoqa.com/buttons)",
+      "file": "task_01.py",
+      "max_score": 60,
+      "tests": [
+        {
+          "name": "Проверка DOUBLE_CLICK локаторов",
+          "input": "",
+          "expected_output": "OK",
+          "comparison_method": "exact",
+          "max_score": 20
+        }
+      ]
+    },
+    {
+      "id": "task_02",
+      "name": "Задание 2: Точные локаторы для второй ссылки (demoqa.com/links)",
+      "file": "task_02.py",
+      "max_score": 40,
+      "tests": [
+        {
+          "name": "Проверка SECOND_LINK локаторов",
+          "input": "",
+          "expected_output": "OK",
+          "comparison_method": "exact",
+          "max_score": 40
+        }
+      ]
+    }
+  ]
+}
