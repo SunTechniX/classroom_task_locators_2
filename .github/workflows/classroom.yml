@@ -1,0 +1,50 @@
+name: Autograding Tests — Home_25
+on:
+  - push
+  - repository_dispatch
+
+permissions:
+  checks: write
+  actions: read
+  contents: read
+
+jobs:
+  run-autograding-tests:
+    name: Оценивание заданий
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-classroom[bot]'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install playwright
+          playwright install chromium
+
+      - name: "[TASK 01] Run tests"
+        id: task_01
+        run: python3 tools/run_task_tests.py task_01
+
+      - name: "[TASK 02] Run tests"
+        id: task_02
+        run: python3 tools/run_task_tests.py task_02
+
+      - name: ✅ Generate Final Summary
+        env:
+          TASK_01_RESULT: ${{ steps.task_01.outputs.result }}
+          TASK_02_RESULT: ${{ steps.task_02.outputs.result }}
+        run: python3 tools/generate_summary.py task_01 task_02
+
+      - name: 📤 Report to GitHub Classroom
+        uses: classroom-resources/autograding-grading-reporter@v1
+        env:
+          TASK_01_RESULTS: ${{ steps.task_01.outputs.result }}
+          TASK_02_RESULTS: ${{ steps.task_02.outputs.result }}
+        with:
+          runners: task_01,task_02
