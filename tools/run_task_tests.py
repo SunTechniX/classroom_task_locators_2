@@ -11,47 +11,120 @@ except ImportError:
     print("❌ Playwright не установлен")
     sys.exit(1)
 
-def validate_task_01(locators):
+def validate_task_01(mod):
+    tests = []
+    total_score = 0
+    max_total = 60
+
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
         page.goto("https://demoqa.com/buttons", timeout=10000)
 
-        pairs = [
-            ("DOUBLE_CLICK", locators["css_double"], locators["xpath_double"]),
-            ("RIGHT_CLICK", locators["css_right"], locators["xpath_right"]),
-            ("CLICK_ME", locators["css_click"], locators["xpath_click"]),
+        checks = [
+            ("DOUBLE_CLICK_CSS", getattr(mod, "DOUBLE_CLICK_CSS", ""), True),
+            ("DOUBLE_CLICK_XPATH", getattr(mod, "DOUBLE_CLICK_XPATH", ""), False),
+            ("RIGHT_CLICK_CSS", getattr(mod, "RIGHT_CLICK_CSS", ""), True),
+            ("RIGHT_CLICK_XPATH", getattr(mod, "RIGHT_CLICK_XPATH", ""), False),
+            ("CLICK_ME_CSS", getattr(mod, "CLICK_ME_CSS", ""), True),
+            ("CLICK_ME_XPATH", getattr(mod, "CLICK_ME_XPATH", ""), False),
         ]
 
-        for name, css, xpath in pairs:
-            # Проверка CSS
-            el_css = page.locator(css)
-            assert el_css.count() == 1, f"{name} CSS: найдено {el_css.count()} элементов (ожидается 1)"
-            # Проверка XPath
-            el_xpath = page.locator(f"xpath={xpath}")
-            assert el_xpath.count() == 1, f"{name} XPath: найдено {el_xpath.count()} элементов"
-        browser.close()
-    return True
+        for name, locator, is_css in checks:
+            score = 0
+            max_score = 10
+            output = ""
+            status = "fail"
+            try:
+                if not locator:
+                    raise ValueError("Локатор пустой")
+                if is_css:
+                    el = page.locator(locator)
+                else:
+                    el = page.locator(f"xpath={locator}")
+                if el.count() != 1:
+                    raise AssertionError(f"Найдено {el.count()} элементов (ожидается 1)")
+                # Доп: проверим, что это кнопка
+                tag = el.evaluate("el => el.tagName.toLowerCase()")
+                if tag != "button":
+                    raise AssertionError(f"Элемент не является <button>, а {tag}")
+                score = max_score
+                status = "pass"
+                output = "OK"
+            except Exception as e:
+                output = str(e)
 
-def validate_task_02(locators):
+            tests.append({
+                "name": name,
+                "score": score,
+                "max_score": max_score,
+                "status": status,
+                "output": output
+            })
+            total_score += score
+
+        browser.close()
+
+    return {
+        "score": total_score,
+        "max_score": max_total,
+        "tests": tests
+    }
+
+def validate_task_02(mod):
+    tests = []
+    total_score = 0
+    max_total = 40
+
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
         page.goto("https://demoqa.com/links", timeout=10000)
 
-        css_loc = locators["css"]
-        xpath_loc = locators["xpath"]
+        checks = [
+            ("SECOND_LINK_CSS", getattr(mod, "SECOND_LINK_CSS", ""), True),
+            ("SECOND_LINK_XPATH", getattr(mod, "SECOND_LINK_XPATH", ""), False),
+        ]
 
-        el_css = page.locator(css_loc)
-        assert el_css.count() == 1, f"CSS находит {el_css.count()} элементов"
-        assert "Home" in el_css.text_content(), "CSS: текст не 'Home'"
+        for name, locator, is_css in checks:
+            score = 0
+            max_score = 20
+            output = ""
+            status = "fail"
+            try:
+                if not locator:
+                    raise ValueError("Локатор пустой")
+                if is_css:
+                    el = page.locator(locator)
+                else:
+                    el = page.locator(f"xpath={locator}")
+                if el.count() != 1:
+                    raise AssertionError(f"Найдено {el.count()} элементов")
+                text = el.text_content().strip()
+                if "Home" not in text:
+                    raise AssertionError(f"Текст не 'Home', а '{text}'")
+                score = max_score
+                status = "pass"
+                output = "OK"
+            except Exception as e:
+                output = str(e)
 
-        el_xpath = page.locator(f"xpath={xpath_loc}")
-        assert el_xpath.count() == 1, f"XPath находит {el_xpath.count()} элементов"
-        assert "Home" in el_xpath.text_content(), "XPath: текст не 'Home'"
+            tests.append({
+                "name": name,
+                "score": score,
+                "max_score": max_score,
+                "status": status,
+                "output": output
+            })
+            total_score += score
 
         browser.close()
-    return True
+
+    return {
+        "score": total_score,
+        "max_score": max_total,
+        "tests": tests
+    }
 
 VALIDATORS = {
     "task_01": validate_task_01,
@@ -77,7 +150,11 @@ def main():
     max_score = task["max_score"]
 
     if not os.path.exists(file_path):
-        result = {"score": 0, "max_score": max_score, "tests": [{"name": "Файл отсутствует", "status": "fail", "score": 0, "max_score": max_score, "output": "Файл не найден"}]}
+        result = {
+            "score": 0,
+            "max_score": max_score,
+            "tests": [{"name": "Файл отсутствует", "status": "fail", "score": 0, "max_score": max_score, "output": "Файл не найден"}]
+        }
         print(f"::set-output name=result::{base64.b64encode(json.dumps(result, ensure_ascii=False).encode()).decode()}")
         return
 
@@ -86,36 +163,23 @@ def main():
         mod = module_from_spec(spec)
         spec.loader.exec_module(mod)
     except Exception as e:
-        result = {"score": 0, "max_score": max_score, "tests": [{"name": "Синтаксическая ошибка", "status": "fail", "score": 0, "max_score": max_score, "output": str(e)}]}
+        result = {
+            "score": 0,
+            "max_score": max_score,
+            "tests": [{"name": "Синтаксическая ошибка", "status": "fail", "score": 0, "max_score": max_score, "output": str(e)}]
+        }
         print(f"::set-output name=result::{base64.b64encode(json.dumps(result, ensure_ascii=False).encode()).decode()}")
         return
 
     try:
-        if task_id == "task_01":
-            locs = {
-                "css_double": getattr(mod, "DOUBLE_CLICK_CSS"),
-                "xpath_double": getattr(mod, "DOUBLE_CLICK_XPATH"),
-                "css_right": getattr(mod, "RIGHT_CLICK_CSS"),
-                "xpath_right": getattr(mod, "RIGHT_CLICK_XPATH"),
-                "css_click": getattr(mod, "CLICK_ME_CSS"),
-                "xpath_click": getattr(mod, "CLICK_ME_XPATH"),
-            }
-            validate_task_01(locs)
-            total_score = max_score
-        elif task_id == "task_02":
-            locs = {
-                "css": getattr(mod, "SECOND_LINK_CSS"),
-                "xpath": getattr(mod, "SECOND_LINK_XPATH"),
-            }
-            validate_task_02(locs)
-            total_score = max_score
-
-        test_result = {"name": "Все локаторы корректны", "status": "pass", "score": total_score, "max_score": max_score, "output": "OK"}
+        result = VALIDATORS[task_id](mod)
     except Exception as e:
-        total_score = 0
-        test_result = {"name": "Ошибка валидации", "status": "fail", "score": 0, "max_score": max_score, "output": str(e)}
+        result = {
+            "score": 0,
+            "max_score": max_score,
+            "tests": [{"name": "Критическая ошибка валидатора", "status": "fail", "score": 0, "max_score": max_score, "output": str(e)}]
+        }
 
-    result = {"score": total_score, "max_score": max_score, "tests": [test_result]}
     encoded = base64.b64encode(json.dumps(result, ensure_ascii=False).encode("utf-8")).decode("utf-8")
     print(f"::set-output name=result::{encoded}")
 
