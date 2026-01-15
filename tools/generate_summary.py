@@ -5,81 +5,80 @@ import base64
 import json
 from datetime import datetime
 
-
 def decode_result(encoded):
     if not encoded or encoded in ("null", "undefined", ""):
-        return {"score": 0, "max_score": 0}
+        return {"score": 0, "max_score": 0, "tests": []}
     try:
         decoded = base64.b64decode(encoded).decode("utf-8")
         return json.loads(decoded)
     except Exception as e:
         print(f"⚠️ Decode error: {e}", file=sys.stderr)
-        return {"score": 0, "max_score": 0}
-
+        return {"score": 0, "max_score": 0, "tests": []}
 
 def main():
-    # Загружаем max_score из tasks.json
     with open(".github/tasks.json", "r", encoding="utf-8") as f:
         tasks = {t["id"]: t for t in json.load(f)["tasks"]}
 
     task_ids = sys.argv[1:]
     total_score = 0
     max_total = 0
-    lines = []
+    report_lines = []
+
+    report_lines.append("## 📊 ИТОГОВЫЙ ОТЧЕТ ПО ВСЕМ ЗАДАНИЯМ\n")
+    report_lines.append("### 📈 Сводная таблица\n")
+    report_lines.append("| Задание | Баллы | Максимум | Статус |")
+    report_lines.append("|---------|-------|----------|--------|")
 
     for task_id in task_ids:
-        # Читаем результат из окружения
-        encoded = os.environ.get(
-            f"TASK_{task_id[-2:]}_RESULT")  # TASK_01_RESULT
-        if not encoded:
-            # Альтернативное имя: TASK_01_RESULT → task_01
-            encoded = os.environ.get(f"{task_id.upper()}_RESULT")
-
+        encoded = os.environ.get(f"{task_id.upper()}_RESULT") or os.environ.get(f"TASK_{task_id[-2:]}_RESULT")
         res = decode_result(encoded)
+
         score = res.get("score", 0)
         max_score = tasks[task_id]["max_score"]
         name = tasks[task_id]["name"]
-
         total_score += score
         max_total += max_score
 
         status = "✅" if score == max_score else ("⚠️" if score > 0 else "❌")
-        lines.append(f"| **{name}** | {score} | {max_score} | {status} |")
+        report_lines.append(f"| **{name}** | {score} | {max_score} | {status} |")
+
+        # Детализация подтестов
+        tests = res.get("tests", [])
+        if tests:
+            report_lines.append(f"\n#### 🔍 Детали по **{name}**\n")
+            report_lines.append("| Подтест | Баллы | Максимум | Статус |")
+            report_lines.append("|---------|-------|----------|--------|")
+            for test in tests:
+                t_name = test.get("name", "—")
+                t_score = test.get("score", 0)
+                t_max = test.get("max_score", 0)
+                t_status = "✅" if t_score == t_max else ("⚠️" if t_score > 0 else "❌")
+                output = test.get("output", "").replace("\n", " \\n ")[:100]  # укоротить
+                report_lines.append(f"| `{t_name}` | {t_score} | {t_max} | {t_status} |")
+                if t_status != "✅" and output.strip():
+                    report_lines.append(f"> 💬 `{output}`")
 
     percentage = int(100 * total_score / max_total) if max_total else 0
+    report_lines.append(f"\n| **ВСЕГО** | **{total_score}** | **{max_total}** | **{percentage}%** |")
 
-    report = []
-    report.append("## 📊 ИТОГОВЫЙ ОТЧЕТ ПО ВСЕМ ЗАДАНИЯМ\n")
-    report.append("### 📈 Сводная таблица\n")
-    report.append("| Задание | Баллы | Максимум | Статус |")
-    report.append("|---------|-------|----------|--------|")
-    report.extend(lines)
-    report.append(
-        f"| **ВСЕГО** | **{total_score}** | **{max_total}** | **{percentage}%** |")
-    report.append("")
-    report.append("### 📁 Найденные файлы:\n")
+    report_lines.append("\n### 📁 Найденные файлы:")
     for task_id in task_ids:
         f = tasks[task_id]["file"]
         exists = "✅" if os.path.exists(f) else "❌"
-        report.append(
-            f"{exists} **{f}** - {'найден' if exists == '✅' else 'не найден'}")
-    report.append("")
-    report.append(f"### 🏆 Итоговая оценка: **{total_score} / {max_total}**")
-    report.append("")
+        report_lines.append(f"{exists} **{f}** - {'найден' if exists == '✅' else 'не найден'}")
+
+    report_lines.append(f"\n### 🏆 Итоговая оценка: **{total_score} / {max_total}**")
     if total_score == max_total:
-        report.append("🎉 **ПОЗДРАВЛЯЕМ! Все задачи выполнены на 100%!**")
+        report_lines.append("\n🎉 **ПОЗДРАВЛЯЕМ! Все задачи выполнены на 100%!**")
     else:
-        report.append("💡 **Есть что улучшить! Смотри детали тестов.**")
-    report.append("")
-    report.append(f"**GitHub Classroom: {total_score}/{max_total} баллов**")
-    report.append("")
-    report.append(
-        f"*Автоматическая проверка завершена* • {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        report_lines.append("\n💡 **Есть что улучшить! Смотри детали тестов выше.**")
+
+    report_lines.append(f"\n**GitHub Classroom: {total_score}/{max_total} баллов**")
+    report_lines.append(f"\n*Автоматическая проверка завершена* • {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
     summary_file = os.environ.get("GITHUB_STEP_SUMMARY", "/dev/stdout")
     with open(summary_file, "a") as f:
-        f.write("\n".join(report))
-
+        f.write("\n".join(report_lines))
 
 if __name__ == "__main__":
     main()
